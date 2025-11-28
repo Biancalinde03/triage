@@ -38,32 +38,35 @@ def levenshtein(a: str, b: str) -> int:
 
 # Category-level default scores for new drugs
 CATEGORY_DEFAULT_SCORE: Dict[str, int] = {
+CATEGORY_DEFAULT_SCORE = {
     "opioid":          5,
     "benzodiazepine":  4,
     "gabapentinoid":   3,
     "dissociative":    3,
     "stimulant":       2,
     "psychedelic":     3,
+
+    # HIGH RISK — only synthetic cannabinoids use this
+    "synthetic_cannabinoid": 6,
+    "nitazene": 7,   # NEW — ultra-high-risk synthetic opioids
+
+
     "other":           1,
     "alcohol":         2,
-    # critically: unknown is *not* 0; we treat it as conservatively high
     "unknown":         4,
-}
+}is 
 
 # Canonicalisation: map variant labels to canonical names
 NORMALISATION_MAP: Dict[str, str] = {
-    "cocaine (low conc)":      "cocaine",
-    "cocaine (trace)":         "cocaine",
-    "ketamine (trace)":        "ketamine",
-    "bromazolam (low conc.)":  "bromazolam",
-}
+    "cocaine (low conc)": "cocaine",
+    "cocaine (trace)": "cocaine",
+    "ketamine (low conc)": "ketamine",
+    "ketamine (trace)": "ketamine",
+    "bromazolam (low conc.)": "bromazolam",
 
-# Canonicalisation: map variant labels to canonical names
-NORMALISATION_MAP: Dict[str, str] = {
-    "cocaine (low conc)":      "cocaine",
-    "cocaine (trace)":         "cocaine",
-    "ketamine (trace)":        "ketamine",
-    "bromazolam (low conc.)":  "bromazolam",
+    # Nitazene spelling variants
+    "nitazenes": "nitazene",   # plural
+    "nitazine": "nitazene",    # common misspelling
 }
 
 # Slang / street names → canonical names (very conservative set)
@@ -85,7 +88,7 @@ SLANG_MAP: Dict[str, str] = {
     "skunk": "cannabis",
 
     # MDMA
-    "mdma": "mdma",     # in case not already normalised
+    "mdma": "mdma",      # in case not already normalised
     "mandy": "mdma",
     "molly": "mdma",
     "ecstasy": "mdma",
@@ -94,7 +97,25 @@ SLANG_MAP: Dict[str, str] = {
     # LSD (TripSit will add 'lsd' as a drug)
     "acid": "lsd",
     "tabs": "lsd",
+
+    # Synthetic cannabinoid slang 
+    "spice": "generic_synthetic_cannabinoid",
+    "k2": "generic_synthetic_cannabinoid",
+    "mdmb": "generic_synthetic_cannabinoid",
+
+    # FENTANYL & ANALOGUE SLANG
+    "fent": "fentanyl",
+    "fenty": "fentanyl",
+    "f": "fentanyl",
+    "fent analog": "fentanyl",
+    "fent analogue": "fentanyl",
+    "fentanyl analog": "fentanyl",
+    "fentanyl analogue": "fentanyl",
+    "para-fluoro": "fentanyl",
+    "p-fent": "fentanyl",
+    "fluoro-fent": "fentanyl",
 }
+
 
 # Words that should be ignored entirely when parsing input
 STOPWORDS = {
@@ -116,6 +137,48 @@ BASE_DRUG_CONFIG: Dict[str, Dict[str, object]] = {
     "codeine":          {"category": "opioid", "score": 3},
     "buprenorphine":    {"category": "opioid", "score": 3},
     "tramadol":         {"category": "opioid", "score": 3},
+
+       # Nitazenes – modelled as ultra-potent synthetic opioids
+    "nitazene": {
+    "category": "nitazene",
+    "score": 7,     # or 8 if you want nitazenes to exceed fentanyl
+},
+"generic_nitazene": {
+    "category": "nitazene",
+    "score": 7,
+},
+
+
+    # Synthetic cannabinoids (SCRAs) — HIGH RISK
+    "generic_synthetic_cannabinoid": {
+        "category": "synthetic_cannabinoid",
+        "score": 6,
+    },
+    "5f_mdmb_pinaca": {
+        "category": "synthetic_cannabinoid",
+        "score": 6,
+    },
+    "5f-adb": {
+        "category": "synthetic_cannabinoid",
+        "score": 6,
+    },
+    "mdmb-4en-pinaca": {
+        "category": "synthetic_cannabinoid",
+        "score": 6,
+    },
+    "akb48": {
+        "category": "synthetic_cannabinoid",
+        "score": 6,
+    },
+    "k2": {
+        "category": "synthetic_cannabinoid",
+        "score": 6,
+    },
+    "spice": {
+        "category": "synthetic_cannabinoid",
+        "score": 6,
+    },
+
 
     # Benzodiazepines
     "bromazolam":       {"category": "benzodiazepine", "score": 4},
@@ -155,6 +218,7 @@ BASE_DRUG_CONFIG: Dict[str, Dict[str, object]] = {
     "nicotine":        {"category": "other", "score": 1},
     "alcohol":         {"category": "alcohol", "score": 2},
 }
+
 
 # Global config (will be populated by initialise_drug_config)
 DRUG_CONFIG: Dict[str, Dict[str, object]] = {}
@@ -569,6 +633,13 @@ STOPWORDS = {
     "their"
 }
 
+# Normalise multi-word phrases before tokenising
+PHRASE_NORMALISATION = {
+    "synthetic cannabinoid": "generic_synthetic_cannabinoid",
+    "synthetic cannabinoids": "generic_synthetic_cannabinoid",
+}
+
+
 def extract_drugs(text: str) -> Tuple[List[str], List[str]]:
     """
     Parse free text and return:
@@ -576,7 +647,14 @@ def extract_drugs(text: str) -> Tuple[List[str], List[str]]:
       - list of 'unknown category' drugs.
       STOPWORDS (e.g. 'and', 'with') are ignored.
     """
-    tokens = re.split(r"[ ,;\n]+", text.lower())
+    text = text.lower()
+
+# Apply phrase normalisation BEFORE splitting
+for phrase, replacement in PHRASE_NORMALISATION.items():
+    text = text.replace(phrase, replacement)
+
+tokens = re.split(r"[ ,;\n]+", text)
+
     detected: List[str] = []
     unknowns: List[str] = []
 
