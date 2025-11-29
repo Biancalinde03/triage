@@ -37,8 +37,8 @@ def levenshtein(a: str, b: str) -> int:
 # =============================================================================
 
 # Category-level default scores for new drugs
+
 CATEGORY_DEFAULT_SCORE: Dict[str, int] = {
-CATEGORY_DEFAULT_SCORE = {
     "opioid":          5,
     "benzodiazepine":  4,
     "gabapentinoid":   3,
@@ -46,15 +46,15 @@ CATEGORY_DEFAULT_SCORE = {
     "stimulant":       2,
     "psychedelic":     3,
 
-    # HIGH RISK — only synthetic cannabinoids use this
+    # HIGH RISK — only synthetic cannabinoids and nitazenes use these
     "synthetic_cannabinoid": 6,
-    "nitazene": 7,   # NEW — ultra-high-risk synthetic opioids
-
+    "nitazene":              7,
 
     "other":           1,
     "alcohol":         2,
     "unknown":         4,
-}is 
+}
+
 
 # Canonicalisation: map variant labels to canonical names
 NORMALISATION_MAP: Dict[str, str] = {
@@ -138,15 +138,16 @@ BASE_DRUG_CONFIG: Dict[str, Dict[str, object]] = {
     "buprenorphine":    {"category": "opioid", "score": 3},
     "tramadol":         {"category": "opioid", "score": 3},
 
-       # Nitazenes – modelled as ultra-potent synthetic opioids
+         # Nitazenes – modelled as ultra-potent synthetic opioids
     "nitazene": {
-    "category": "nitazene",
-    "score": 7,     # or 8 if you want nitazenes to exceed fentanyl
-},
-"generic_nitazene": {
-    "category": "nitazene",
-    "score": 7,
-},
+        "category": "nitazene",
+        "score": 7,   # or 8 if you want nitazenes to exceed fentanyl
+    },
+    "generic_nitazene": {
+        "category": "nitazene",
+        "score": 7,
+    },
+
 
 
     # Synthetic cannabinoids (SCRAs) — HIGH RISK
