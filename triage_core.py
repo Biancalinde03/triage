@@ -650,11 +650,11 @@ def extract_drugs(text: str) -> Tuple[List[str], List[str]]:
     """
     text = text.lower()
 
-# Apply phrase normalisation BEFORE splitting
-for phrase, replacement in PHRASE_NORMALISATION.items():
-    text = text.replace(phrase, replacement)
+    # Apply phrase normalisation BEFORE splitting
+    for phrase, replacement in PHRASE_NORMALISATION.items():
+        text = text.replace(phrase, replacement)
 
-tokens = re.split(r"[ ,;\n]+", text)
+    tokens = re.split(r"[ ,;\n]+", text)
 
     detected: List[str] = []
     unknowns: List[str] = []
