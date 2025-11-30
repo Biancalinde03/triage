@@ -817,19 +817,19 @@ def extract_drugs(text: str) -> Tuple[List[str], List[str]]:
     unknowns: List[str] = []
 
     for token in tokens:
-        token = token.strip()
+    # Clean whitespace + hidden characters in one go
+    token = token.strip().replace("\r", "").replace("\n", "")
 
-        # Skip empty tokens and filler words like "and"
-        if not token or token in STOPWORDS:
-            continue
+    # Skip empty tokens and filler words like "and"
+    if not token or token in STOPWORDS:
+        continue
 
-        token = token.strip().replace("\r", "").replace("\n", "")
+    canonical, cat, score, is_unknown = get_drug_info(token)
+    detected.append(canonical)
 
-        canonical, cat, score, is_unknown = get_drug_info(token)
-        detected.append(canonical)
+    if is_unknown:
+        unknowns.append(canonical)
 
-        if is_unknown:
-            unknowns.append(canonical)
 
     # Remove duplicates
     detected = list(dict.fromkeys(detected))
