@@ -568,28 +568,32 @@ def get_drug_info(raw_token: str) -> Tuple[str, str, int, bool]:
     """
     Given a raw token, return (canonical_name, category, score, is_unknown).
 
-    New substances are:
-      - normalised,
-      - assigned an inferred category,
-      - given a conservative default score,
-      - stored in DRUG_CONFIG,
-      - flagged as 'unknown' if category == 'unknown'.
+    - If the substance is already in DRUG_CONFIG (BASE/TRIPSIT), it is treated
+      as a *known* drug and `is_unknown` is always False.
+    - Only substances that are not in DRUG_CONFIG and require on-the-fly
+      inference can be flagged as 'unknown'.
     """
+    # Normalise and fuzzy-match first
     token = normalise_token(raw_token)
-
-    # Apply fuzzy matching AFTER normalisation but BEFORE lookup
     token = fuzzy_match_drug(token, list(DRUG_CONFIG.keys()))
 
+    # 1) Already known drug → never mark as 'unknown'
     if token in DRUG_CONFIG:
         info = DRUG_CONFIG[token]
         cat = str(info["category"])
         score = int(info["score"])
-        return token, cat, score, (cat == "unknown")
+        # Known drug, regardless of category label
+        return token, cat, score, False
 
+    # 2) New / unseen substance → infer category + score
     inferred_cat = infer_category_from_name(token)
     score = CATEGORY_DEFAULT_SCORE[inferred_cat]
+
     DRUG_CONFIG[token] = {"category": inferred_cat, "score": score}
-    return token, inferred_cat, score, (inferred_cat == "unknown")
+
+    # Only truly new / inferred substances can be 'unknown'
+    is_unknown = (inferred_cat == "unknown")
+    return token, inferred_cat, score, is_unknown
 
 # =============================================================================
 # 5. CATEGORY-LEVEL SYNERGY RULES
