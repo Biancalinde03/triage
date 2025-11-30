@@ -612,7 +612,7 @@ def compute_context_modifier(context: dict, drugs: List[str]) -> Tuple[int, List
     height_cm = context.get("height_cm")
     sex = context.get("sex")  # collected for context / future use, not used in scoring
 
-        opioid_dependent = context.get("opioid_dependent", False)
+    opioid_dependent = context.get("opioid_dependent", False)
     homeless = context.get("homeless", False)
     recent_overdose = context.get("recent_overdose", False)
     severe_mental_health = context.get("severe_mental_health", False)
