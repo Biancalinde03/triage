@@ -71,7 +71,6 @@ NORMALISATION_MAP: Dict[str, str] = {
 
 # Slang / street names → canonical names (very conservative set)
 SLANG_MAP: Dict[str, str] = {
-  SLANG_MAP: Dict[str, str] = {
     # Cocaine
     "charlie": "cocaine",
     "coke": "cocaine",
@@ -89,17 +88,17 @@ SLANG_MAP: Dict[str, str] = {
     "skunk": "cannabis",
 
     # MDMA
-    "mdma": "mdma",
+    "mdma": "mdma",      # in case not already normalised
     "mandy": "mdma",
     "molly": "mdma",
     "ecstasy": "mdma",
     "xtc": "mdma",
 
-    # LSD
+    # LSD (TripSit will add 'lsd' as a drug)
     "acid": "lsd",
     "tabs": "lsd",
 
-    # Synthetic cannabinoid slang
+    # Synthetic cannabinoid slang 
     "spice": "generic_synthetic_cannabinoid",
     "k2": "generic_synthetic_cannabinoid",
     "mdmb": "generic_synthetic_cannabinoid",
