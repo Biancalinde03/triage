@@ -18,9 +18,17 @@ st.title("Drug & Context Triage Tool")
 
 st.markdown(
     """
-This tool uses detected substances and person-level context to generate a
-triage score and suggested pathway. It is intended as **decision support**
-and does not replace clinical judgement.
+This tool estimates **relative acute overdose / life-threatening risk**
+based on detected substances and brief person-level context.
+
+- A **lower score** means *lower acute overdose risk relative to other
+  profiles in this tool* – it does **not** mean the drugs are safe or
+  low-harm overall.
+- The tool does **not** capture long-term physical, psychological or
+  social harms from substance use.
+
+It is intended as **decision support only** and does not replace
+clinical judgement.
 """
 )
 
@@ -69,18 +77,26 @@ if st.button("Run triage") and drugs_text.strip():
     result = triage_from_text_and_context(drugs_text, context)
 
     st.markdown("## Triage result")
+
     st.write(f"**Detected drugs:** {', '.join(result['detected_drugs']) or 'None'}")
     if result["unknown_drugs"]:
         st.write(f"**Unknown drugs (flagged):** {', '.join(result['unknown_drugs'])}")
 
-    st.write(f"**Drug score:** {result['drug_score']}")
+    st.write(f"**Drug score (acute pharmacological risk):** {result['drug_score']}")
     st.write(f"- Category synergy component: {result['synergy_component']}")
     st.write(f"- TripSit combo component: {result['tripsit_combo_component']}")
-    st.write(f"**Context score:** {result['context_score']}")
-    st.write(f"**TOTAL triage score:** {result['total_score']}")
+    st.write(f"**Context score (client vulnerability factors):** {result['context_score']}")
+    st.write(f"**TOTAL triage score (acute overdose risk):** {result['total_score']}")
 
-    st.markdown(f"### Risk branch: **{result['branch']}**")
-    st.markdown("**Recommended interventions:**")
+    st.caption(
+        "The total triage score reflects **relative acute overdose / life-threatening risk** "
+        "within this model. It does not mean the drugs are safe or low-harm overall when "
+        "the score is lower."
+    )
+
+    st.markdown(f"### Acute risk branch / pathway: **{result['branch']}**")
+
+    st.markdown("**Recommended interventions (based on acute risk):**")
     for item in result["interventions"]:
         st.markdown(f"- {item}")
 
@@ -93,5 +109,3 @@ if st.button("Run triage") and drugs_text.strip():
     st.write(f"**Refer:** {ref['refer']} (priority: **{ref['priority']}**)")
     st.write(f"**Reason:** {ref['reason']}")
     st.write(f"**Suggested service:** {ref['suggested_service']}")
-    
-
