@@ -826,7 +826,7 @@ def referral_recommendation(total_score: int, unknown_drugs: List[str], context:
         reasons.append(
             "Known or suspected opioid dependence – assessment for structured treatment recommended."
         )
-        # not automatically 'urgent', but always a reason to refer
+        urgent = True
 
     if total_score >= 12:
         reasons.append("High overall triage score (>=12).")
@@ -834,8 +834,7 @@ def referral_recommendation(total_score: int, unknown_drugs: List[str], context:
     if unknown_drugs and total_score >= 8:
         reasons.append("Unknown substances present in a moderate/high-risk profile.")
 
-    # key change: include opioid_dependent in the referral decision
-    if urgent or opioid_dependent or total_score >= 12 or (unknown_drugs and total_score >= 8):
+    if urgent or total_score >= 12 or (unknown_drugs and total_score >= 8):
         priority = "urgent" if urgent else "soon"
         suggested_service = "NHS community addiction service / crisis team"
         if homeless:
@@ -853,6 +852,7 @@ def referral_recommendation(total_score: int, unknown_drugs: List[str], context:
         "reason": "No immediate indicators for urgent referral; offer information and optional signposting.",
         "suggested_service": "Routine primary care or local drug service (if client wishes).",
     }
+
 
 # =============================================================================
 # 9. HIGH-LEVEL TRIAGE FUNCTION
