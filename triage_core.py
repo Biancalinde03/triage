@@ -368,12 +368,17 @@ def initialise_drug_config(tripsit_path: Optional[str] = None) -> None:
     """
     Populate DRUG_CONFIG with:
       1. BASE_DRUG_CONFIG (Bristol/core set),
-      2. Optional TripSit drugs.json (if provided).
+      2. Optional TripSit drugs.json (if provided),
+      3. Alias maps (single-word + multi-word slang) from TripSit.
     """
     global DRUG_CONFIG
     DRUG_CONFIG = dict(BASE_DRUG_CONFIG)
+
     if tripsit_path:
+        # 1) Add all TripSit drugs into DRUG_CONFIG
         load_tripsit_drugs(tripsit_path)
+        # 2) Extend NORMALISATION_MAP and PHRASE_NORMALISATION
+        build_alias_maps_from_tripsit(tripsit_path)
 
 # =============================================================================
 # 3. TRIPSIT COMBO PENALTIES (combos.json)
@@ -686,6 +691,14 @@ STOPWORDS = {
 PHRASE_NORMALISATION = {
     "synthetic cannabinoid": "generic_synthetic_cannabinoid",
     "synthetic cannabinoids": "generic_synthetic_cannabinoid",
+
+    # High-priority manual mappings
+    "crystal meth": "methamphetamine",
+    "crystal-meth": "methamphetamine",
+    "ice (meth)": "methamphetamine",
+
+    # Common typo you accidentally used in the screenshot:
+    "cyrstal meth": "methamphetamine",
 }
 
 
