@@ -568,31 +568,52 @@ def get_drug_info(raw_token: str) -> Tuple[str, str, int, bool]:
     """
     Given a raw token, return (canonical_name, category, score, is_unknown).
 
-    - If the substance is already in DRUG_CONFIG (BASE/TRIPSIT), it is treated
-      as a *known* drug and `is_unknown` is always False.
-    - Only substances that are not in DRUG_CONFIG and require on-the-fly
-      inference can be flagged as 'unknown'.
+    Rules:
+      - Anything defined in BASE_DRUG_CONFIG is always treated as a known drug
+        and is never flagged as 'unknown'.
+      - Anything already in DRUG_CONFIG (TripSit or previously inferred) is
+        treated as known, unless its category is literally 'unknown'.
+      - Only new / inferred substances with category 'unknown' are returned
+        as unknowns.
     """
-    # Normalise and fuzzy-match first
+    # 1) Normalise slang / variants
     token = normalise_token(raw_token)
-    token = fuzzy_match_drug(token, list(DRUG_CONFIG.keys()))
 
-    # 1) Already known drug → never mark as 'unknown'
+    # 2) Fuzzy match against ALL known labels (base + current config)
+    known_labels = set(BASE_DRUG_CONFIG.keys()) | set(DRUG_CONFIG.keys())
+    token = fuzzy_match_drug(token, list(known_labels))
+
+    # --- A. ALWAYS-KNOWN: base Bristol set ---------------------------------
+    if token in BASE_DRUG_CONFIG:
+        base_info = BASE_DRUG_CONFIG[token]
+        cat = str(base_info["category"])
+        score = int(base_info["score"])
+
+        # Make sure DRUG_CONFIG has this as well
+        if token not in DRUG_CONFIG:
+            DRUG_CONFIG[token] = {"category": cat, "score": score}
+
+        # Base drugs can NEVER be 'unknown'
+        return token, cat, score, False
+
+    # --- B. Known from TripSit / previous inference ------------------------
     if token in DRUG_CONFIG:
         info = DRUG_CONFIG[token]
         cat = str(info["category"])
         score = int(info["score"])
-        # Known drug, regardless of category label
-        return token, cat, score, False
+        # Only treat as unknown if its stored category is literally 'unknown'
+        is_unknown = (cat == "unknown")
+        return token, cat, score, is_unknown
 
-    # 2) New / unseen substance → infer category + score
+    # --- C. Completely new substance: infer on the fly ---------------------
     inferred_cat = infer_category_from_name(token)
+    if inferred_cat not in CATEGORY_DEFAULT_SCORE:
+        inferred_cat = "unknown"
+
     score = CATEGORY_DEFAULT_SCORE[inferred_cat]
-
     DRUG_CONFIG[token] = {"category": inferred_cat, "score": score}
-
-    # Only truly new / inferred substances can be 'unknown'
     is_unknown = (inferred_cat == "unknown")
+
     return token, inferred_cat, score, is_unknown
 
 # =============================================================================
@@ -838,7 +859,6 @@ def extract_drugs(text: str) -> Tuple[List[str], List[str]]:
     unknowns = list(dict.fromkeys(unknowns))
 
     return detected, unknowns
-
 
 
 def compute_drug_score(drugs: List[str]) -> Tuple[int, int, int]:
