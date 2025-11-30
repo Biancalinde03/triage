@@ -39,11 +39,11 @@ with col1:
     weight_kg = st.number_input("Weight (kg)", min_value=20.0, max_value=200.0, step=0.5)
     height_cm = st.number_input("Height (cm)", min_value=120.0, max_value=220.0, step=0.5)
 with col2:
-    sex = st.selectbox(
+        sex = st.selectbox(
         "Sex (for context – optional)",
         ["Prefer not to record", "Female", "Male", "Intersex / other"],
     )
-    opioid_naive = st.checkbox("Opioid-naïve (no regular opioid use)?", value=False)
+    opioid_dependent = st.checkbox("Known or suspected opioid dependence?", value=False)
     homeless = st.checkbox("Currently homeless or unstable housing?")
     recent_overdose = st.checkbox("Recent non-fatal overdose (last 3–6 months)?")
     severe_mental_health = st.checkbox("Severe mental health difficulty?")
@@ -54,7 +54,7 @@ context = {
     "weight_kg": float(weight_kg) if weight_kg else None,
     "height_cm": float(height_cm) if height_cm else None,
     "sex": sex.lower() if sex and not sex.startswith("Prefer") else None,
-    "opioid_naive": opioid_naive,
+    "opioid_dependent": opioid_dependent,
     "homeless": homeless,
     "recent_overdose": recent_overdose,
     "severe_mental_health": severe_mental_health,

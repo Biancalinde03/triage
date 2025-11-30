@@ -612,7 +612,7 @@ def compute_context_modifier(context: dict, drugs: List[str]) -> Tuple[int, List
     height_cm = context.get("height_cm")
     sex = context.get("sex")  # collected for context / future use, not used in scoring
 
-    opioid_naive = context.get("opioid_naive", False)
+        opioid_dependent = context.get("opioid_dependent", False)
     homeless = context.get("homeless", False)
     recent_overdose = context.get("recent_overdose", False)
     severe_mental_health = context.get("severe_mental_health", False)
@@ -649,10 +649,10 @@ def compute_context_modifier(context: dict, drugs: List[str]) -> Tuple[int, List
         ctx_score += 1
         reasons.append("Low body weight (<55 kg) – higher effective exposure.")
 
-    # Opioid-naïve on opioids
-    if has_opioid and opioid_naive:
+        # Known opioid dependence – higher baseline risk
+    if has_opioid and opioid_dependent:
         ctx_score += 2
-        reasons.append("Opioid-naïve individual using opioids – increased overdose risk.")
+        reasons.append("Known or suspected opioid dependence – higher baseline overdose and relapse risk.")
 
     # Social / clinical vulnerability
     if homeless:
@@ -805,22 +805,37 @@ def lcms_priority(score: int, unknown_drugs: List[str]) -> str:
 def referral_recommendation(total_score: int, unknown_drugs: List[str], context: dict) -> dict:
     homeless = context.get("homeless", False)
     recent_overdose = context.get("recent_overdose", False)
+    opioid_dependent = context.get("opioid_dependent", False)
 
     reasons = []
     urgent = False
 
     if homeless:
-        reasons.append("Person is experiencing homelessness – needs enhanced support and care coordination.")
+        reasons.append(
+            "Person is experiencing homelessness – needs enhanced support and care coordination."
+        )
         urgent = True
+
     if recent_overdose:
-        reasons.append("Recent overdose – strong indication for rapid clinical follow-up.")
+        reasons.append(
+            "Recent overdose – strong indication for rapid clinical follow-up."
+        )
         urgent = True
+
+    if opioid_dependent:
+        reasons.append(
+            "Known or suspected opioid dependence – assessment for structured treatment recommended."
+        )
+        # not automatically 'urgent', but always a reason to refer
+
     if total_score >= 12:
         reasons.append("High overall triage score (>=12).")
+
     if unknown_drugs and total_score >= 8:
         reasons.append("Unknown substances present in a moderate/high-risk profile.")
 
-    if urgent or total_score >= 12 or (unknown_drugs and total_score >= 8):
+    # key change: include opioid_dependent in the referral decision
+    if urgent or opioid_dependent or total_score >= 12 or (unknown_drugs and total_score >= 8):
         priority = "urgent" if urgent else "soon"
         suggested_service = "NHS community addiction service / crisis team"
         if homeless:
