@@ -254,7 +254,9 @@ def map_tripsit_category_to_internal(ext_cat: str) -> str:
 def ingest_drug_record(name: str, internal_cat: str, default_score: int) -> None:
     """
     Add or update a single drug entry in DRUG_CONFIG.
-    If the drug already exists, keep the higher score (conservative).
+    If the drug already exists, keep the higher score (conservative),
+    and update category only if the existing category is 'unknown'
+    and the new category is more specific.
     """
     name = name.lower().strip()
     if not name:
@@ -264,18 +266,21 @@ def ingest_drug_record(name: str, internal_cat: str, default_score: int) -> None
         internal_cat = "other"
 
     existing = DRUG_CONFIG.get(name)
-    if existing:
-    # keep highest score
-    existing["score"] = max(int(existing["score"]), default_score)
 
-    # update category UNLESS existing one is more specific
-    if existing["category"] == "unknown" and internal_cat != "unknown":
-        existing["category"] = internal_cat
-else:
-    DRUG_CONFIG[name] = {
-        "category": internal_cat,
-        "score": default_score,
-    }
+    if existing:
+        # keep highest score
+        existing["score"] = max(int(existing["score"]), default_score)
+
+        # update category UNLESS existing one is more specific
+        if existing["category"] == "unknown" and internal_cat != "unknown":
+            existing["category"] = internal_cat
+
+    else:
+        DRUG_CONFIG[name] = {
+            "category": internal_cat,
+            "score": default_score,
+        }
+
 
 def load_tripsit_drugs(json_path: str) -> None:
     """
