@@ -34,12 +34,14 @@ drugs_text = st.text_area(
 st.subheader("Client context")
 
 col1, col2 = st.columns(2)
+
 with col1:
     age = st.number_input("Age", min_value=0, max_value=120, step=1)
     weight_kg = st.number_input("Weight (kg)", min_value=20.0, max_value=200.0, step=0.5)
     height_cm = st.number_input("Height (cm)", min_value=120.0, max_value=220.0, step=0.5)
+
 with col2:
-        sex = st.selectbox(
+    sex = st.selectbox(
         "Sex (for context – optional)",
         ["Prefer not to record", "Female", "Male", "Intersex / other"],
     )
