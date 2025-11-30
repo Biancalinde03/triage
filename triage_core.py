@@ -265,12 +265,17 @@ def ingest_drug_record(name: str, internal_cat: str, default_score: int) -> None
 
     existing = DRUG_CONFIG.get(name)
     if existing:
-        existing["score"] = max(int(existing["score"]), default_score)
-    else:
-        DRUG_CONFIG[name] = {
-            "category": internal_cat,
-            "score": default_score,
-        }
+    # keep highest score
+    existing["score"] = max(int(existing["score"]), default_score)
+
+    # update category UNLESS existing one is more specific
+    if existing["category"] == "unknown" and internal_cat != "unknown":
+        existing["category"] = internal_cat
+else:
+    DRUG_CONFIG[name] = {
+        "category": internal_cat,
+        "score": default_score,
+    }
 
 def load_tripsit_drugs(json_path: str) -> None:
     """
