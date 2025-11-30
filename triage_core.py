@@ -316,6 +316,54 @@ def load_tripsit_drugs(json_path: str) -> None:
 
         ingest_drug_record(drug_name, internal_cat, default_score)
 
+def build_alias_maps_from_tripsit(json_path: str) -> None:
+    """
+    Read TripSit's drugs.json and extend:
+      - NORMALISATION_MAP with single-word aliases
+      - PHRASE_NORMALISATION with multi-word aliases (e.g. 'crystal meth').
+    Canonical name = the main key in drugs.json.
+    """
+    global NORMALISATION_MAP, PHRASE_NORMALISATION
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    for canonical, meta in data.items():
+        canon = canonical.lower().strip()
+
+        # 1) Collect aliases: TripSit usually stores them under 'aliases'
+        aliases = meta.get("aliases") or []
+
+        # 2) Optionally also include 'common_names' under properties, if present
+        props = meta.get("properties") or {}
+        common_names = props.get("common_names") or []
+        if isinstance(common_names, str):
+            common_names = [common_names]
+
+        for raw in list(aliases) + list(common_names):
+            if not raw:
+                continue
+            alias = raw.lower().strip()
+
+            # simple cleanup: normalise spaces & hyphens
+            alias = alias.replace("–", "-")
+            alias = alias.replace("_", " ")
+
+            # skip if alias is identical to canonical
+            if alias == canon:
+                continue
+
+            # Multi-word aliases → phrase normalisation (e.g. "crystal meth")
+            if " " in alias:
+                # we don't want to clobber your manual entries if already set
+                if alias not in PHRASE_NORMALISATION:
+                    PHRASE_NORMALISATION[alias] = canon
+            else:
+                # Single word → normalisation map
+                if alias not in NORMALISATION_MAP:
+                    NORMALISATION_MAP[alias] = canon
+
+
 def initialise_drug_config(tripsit_path: Optional[str] = None) -> None:
     """
     Populate DRUG_CONFIG with:
@@ -468,7 +516,7 @@ def infer_category_from_name(name: str) -> str:
     """
     n = name.lower()
     if "nitazene" in n:
-        return "opioid"
+        return "nitazene"
     if "pinaca" in n or " cannabinoid" in n:
         return "other"
     if "cathinone" in n:
