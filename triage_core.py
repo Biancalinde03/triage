@@ -605,6 +605,91 @@ SYNERGY_PAIRS: List[Tuple[str, str]] = [
     ("benzodiazepine", "dissociative"),
     ("opioid", "stimulant"),  # speedballing
 ]
+# =============================================================================
+# 5a. DRUG PROFILE FLAGS FOR TAILORED RECOMMENDATIONS
+# =============================================================================
+
+# Example groupings – aligned to your canonical names.
+OPIOID_LIKE = {
+    "heroin",
+    "diacetylmorphine",
+    "6-am",
+    "6-ac",
+    "morphine",
+    "fentanyl",
+    "methadone",
+    "oxycodone",
+    "buprenorphine",
+    "codeine",
+    "tramadol",
+    "nitazene",
+    "generic_nitazene",
+}
+
+BENZOS = {
+    "bromazolam",
+    "alprazolam",
+    "diazepam",
+    "clonazepam",
+    "lorazepam",
+    # TripSit may add more, but these are common
+    "etizolam",
+    "flubromazolam",
+}
+
+GABAPENTINOIDS = {
+    "pregabalin",
+    "gabapentin",
+}
+
+ALCOHOL_LIKE = {
+    "alcohol",
+    "ethanol",
+}
+
+STIMULANTS = {
+    "cocaine",
+    "cathinone",
+    "methamphetamine",
+    "amphetamine",
+    "mdma",
+    "di(beta-phenylisopropyl)amine",
+}
+
+DISSOCIATIVES = {
+    "ketamine",
+    "methoxetamine",
+    "mxe",
+}
+
+
+def classify_drug_profile(canonical_drugs: List[str]) -> dict:
+    """
+    Return booleans describing the main pharmacological profile
+    from a list of canonical drug names.
+    """
+    lower = {d.lower() for d in canonical_drugs}
+
+    has_opioid_like = bool(lower & OPIOID_LIKE)
+    has_benzo = bool(lower & BENZOS)
+    has_gabapentinoid = bool(lower & GABAPENTINOIDS)
+    has_alcohol = bool(lower & ALCOHOL_LIKE)
+    has_stimulant = bool(lower & STIMULANTS)
+    has_dissociative = bool(lower & DISSOCIATIVES)
+
+    has_any_depressant = (
+        has_opioid_like or has_benzo or has_gabapentinoid or has_alcohol or has_dissociative
+    )
+
+    return {
+        "has_opioid_like": has_opioid_like,
+        "has_benzo": has_benzo,
+        "has_gabapentinoid": has_gabapentinoid,
+        "has_alcohol": has_alcohol,
+        "has_stimulant": has_stimulant,
+        "has_dissociative": has_dissociative,
+        "has_any_depressant": has_any_depressant,
+    }
 
 # =============================================================================
 # 6. PERSON-LEVEL CONTEXT MODIFIERS
@@ -738,6 +823,8 @@ def extract_drugs(text: str) -> Tuple[List[str], List[str]]:
         if not token or token in STOPWORDS:
             continue
 
+        token = token.strip().replace("\r", "").replace("\n", "")
+
         canonical, cat, score, is_unknown = get_drug_info(token)
         detected.append(canonical)
 
@@ -785,37 +872,17 @@ def compute_drug_score(drugs: List[str]) -> Tuple[int, int, int]:
 # 8. TRIAGE BRANCHES, LCMS PRIORITY, REFERRAL LOGIC
 # =============================================================================
 
-def triage_branch(score: int) -> dict:
+def triage_branch(score: int) -> str:
+    """
+    Map the total score to a simple branch label.
+    Detailed interventions are now handled separately in build_recommendations().
+    """
     if score >= 12:
-        return {
-            "branch": "High risk",
-            "interventions": [
-                "Urgent referral to specialist addiction services.",
-                "Consider opioid substitution therapy and supervised dosing for opioids.",
-                "Provide take-home naloxone and overdose response training.",
-                "Initiate medically supervised tapering for benzodiazepines or gabapentinoids.",
-                "Offer comprehensive psychosocial and housing support where relevant.",
-            ],
-        }
+        return "High risk"
     elif score >= 6:
-        return {
-            "branch": "Moderate risk",
-            "interventions": [
-                "Discuss harm-reduction strategies and monitor use closely.",
-                "Assess for opioid substitution therapy or naltrexone where appropriate.",
-                "Provide naloxone and training.",
-                "Offer counselling and referral to community support services.",
-            ],
-        }
+        return "Moderate risk"
     else:
-        return {
-            "branch": "Low risk",
-            "interventions": [
-                "Provide education on safer use and harm-reduction.",
-                "Offer brief interventions and monitor for escalation.",
-                "No pharmacotherapy usually required.",
-            ],
-        }
+        return "Low risk"
 
 def lcms_priority(score: int, unknown_drugs: List[str]) -> str:
     if unknown_drugs:
@@ -826,62 +893,186 @@ def lcms_priority(score: int, unknown_drugs: List[str]) -> str:
         return "LCMS useful but not essential; prioritise unknown/high-risk samples first."
     return "LCMS generally not required for triage; can be deprioritised if resources are limited."
 
-def referral_recommendation(total_score: int, unknown_drugs: List[str], context: dict) -> dict:
+def build_recommendations(
+    canonical_drugs: List[str],
+    context: dict,
+    branch: str,
+    total_score: int,
+    unknown_drugs: List[str],
+    ctx_reasons: List[str],
+) -> Tuple[List[str], List[str], dict]:
+    """
+    Construct tailored interventions, alerts and referral suggestion
+    based on drugs + context + overall risk branch.
+    """
+    profile = classify_drug_profile(canonical_drugs)
+    interventions: List[str] = []
+    alerts: List[str] = []
+
+    # --- Base interventions by risk branch (generic framing) ---
+    if branch.lower().startswith("high"):
+        interventions.append(
+            "Urgent clinical assessment recommended. Consider immediate medical review "
+            "or emergency services if there are concerning symptoms (reduced consciousness, "
+            "breathing difficulties, chest pain, seizures)."
+        )
+    elif branch.lower().startswith("moderate"):
+        interventions.append(
+            "Offer same-day or soon clinical review where possible, and provide clear "
+            "harm reduction advice based on the substances detected."
+        )
+    else:  # low risk branch
+        interventions.append(
+            "Provide brief harm reduction advice tailored to the substances detected and "
+            "agree a plan for follow-up or support if needed."
+        )
+
+    # --- Drug-specific advice ---
+
+    # Opioids / nitazenes (this is where naloxone is now limited to opioid-like cases)
+    if profile["has_opioid_like"]:
+        interventions.append(
+            "Offer take-home naloxone where available and ensure the person and people "
+            "around them know how to recognise and respond to an opioid overdose."
+        )
+        alerts.append(
+            "High risk of respiratory depression from opioids/nitazenes, particularly if "
+            "combined with alcohol, benzodiazepines or gabapentinoids."
+        )
+
+    # Stimulants without opioids
+    if profile["has_stimulant"] and not profile["has_opioid_like"]:
+        interventions.append(
+            "Offer harm reduction advice for stimulant use (hydration, overheating, "
+            "managing comedown, avoiding repeated high doses or long binges)."
+        )
+        alerts.append(
+            "Stimulants can trigger chest pain, arrhythmias, agitation, psychosis or stroke, "
+            "especially at high doses or in people with underlying cardiovascular disease."
+        )
+
+    # Benzos / gabapentinoids with other depressants
+    if (profile["has_benzo"] or profile["has_gabapentinoid"]) and profile["has_any_depressant"]:
+        interventions.append(
+            "Discuss the high overdose risk from combining benzodiazepines / gabapentinoids "
+            "with opioids or alcohol, and explore options to reduce or separate use."
+        )
+        alerts.append(
+            "Benzodiazepines and gabapentinoids can markedly worsen respiratory depression "
+            "when taken with opioids or alcohol."
+        )
+
+    # Alcohol-heavy picture (without opioids/dissociatives)
+    if profile["has_alcohol"] and not profile["has_opioid_like"] and not profile["has_dissociative"]:
+        interventions.append(
+            "Offer advice on safer drinking (pacing, avoiding mixing with sedatives, "
+            "eating beforehand) and explore any concerns about dependence or withdrawal."
+        )
+
+    # Dissociatives (e.g. ketamine)
+    if profile["has_dissociative"]:
+        interventions.append(
+            "Provide harm reduction advice for ketamine/dissociatives (dose spacing, "
+            "avoiding mixing with alcohol or other sedatives, bladder and mental health risks)."
+        )
+        alerts.append(
+            "Dissociatives can cause accidents, falls and injuries due to impaired perception "
+            "and coordination, and repeated use is linked to bladder and mental health problems."
+        )
+
+    # --- Contextual alerts (re-use ctx_reasons from compute_context_modifier) ---
+    if ctx_reasons:
+        alerts.append("Contextual vulnerability factors: " + " ".join(ctx_reasons))
+
+    # --- Unknown substances + LCMS priority ---
+    if unknown_drugs:
+        alerts.append(
+            f"Unidentified substance(s) detected: {', '.join(unknown_drugs)}. "
+            "These were assigned to an 'unknown' category with a conservative non-zero "
+            "risk score and should be flagged for manual review and potential LCMS confirmation."
+        )
+
+    lcms_note = lcms_priority(total_score, unknown_drugs)
+    alerts.append(lcms_note)
+
+    # --- Context-sensitive referrals ---
     homeless = context.get("homeless", False)
     recent_overdose = context.get("recent_overdose", False)
     opioid_dependent = context.get("opioid_dependent", False)
+    polysubstance_history = context.get("polysubstance_history", False)
+    severe_mental_health = context.get("severe_mental_health", False)
 
-    reasons = []
-    urgent = False
+    refer = "No"
+    priority = "routine"
+    reason_parts: List[str] = []
+    suggested_service = "Consider local NHS or third-sector drug and alcohol services."
 
-    if homeless:
-        reasons.append(
-            "Person is experiencing homelessness – needs enhanced support and care coordination."
+    # Overdose / very high score
+    if branch.lower().startswith("high") or total_score >= 12:
+        refer = "Yes"
+        priority = "urgent"
+        reason_parts.append(
+            "High acute overdose risk based on substances, combinations and context."
         )
-        urgent = True
 
+    # Recent non-fatal overdose
     if recent_overdose:
-        reasons.append(
-            "Recent overdose – strong indication for rapid clinical follow-up."
+        refer = "Yes"
+        priority = "urgent"
+        reason_parts.append(
+            "Recent non-fatal overdose in the last 3–6 months."
         )
-        urgent = True
 
-    if opioid_dependent:
-        reasons.append(
-            "Known or suspected opioid dependence – assessment for structured treatment recommended."
+    # Opioid dependence or heavy polysubstance history
+    if opioid_dependent or polysubstance_history:
+        refer = "Yes"
+        if priority != "urgent":
+            priority = "soon"
+        reason_parts.append(
+            "Ongoing dependence / regular polysubstance use; would benefit from structured "
+            "treatment or psychosocial support."
         )
-        # if you want this to *always* trigger urgent, keep this:
-        urgent = True
+        suggested_service = (
+            "Local NHS drug and alcohol service (community addiction team, opiate "
+            "substitution treatment, psychosocial support)."
+        )
 
-    if total_score >= 12:
-        reasons.append("High overall triage score (>=12).")
+    # Homeless or unstable housing – push to homelessness-specific services
+    if homeless:
+        refer = "Yes"
+        if priority != "urgent":
+            priority = "soon"
+        reason_parts.append(
+            "Current homelessness or very unstable housing; consider enhanced outreach "
+            "or homelessness-specific services."
+        )
+        suggested_service = (
+            "Local homelessness outreach or integrated drug and alcohol / housing service."
+        )
 
-    if unknown_drugs and total_score >= 8:
-        reasons.append("Unknown substances present in a moderate/high-risk profile.")
+    # Severe mental health difficulty
+    if severe_mental_health:
+        refer = "Yes"
+        if priority == "routine":
+            priority = "soon"
+        reason_parts.append(
+            "Severe mental health difficulty reported; consider joint working with mental "
+            "health services or referral for assessment."
+        )
 
-    # Decide on referral
-    if urgent or total_score >= 12 or (unknown_drugs and total_score >= 8):
-        priority = "urgent" if urgent else "soon"
-        suggested_service = "NHS community addiction service / crisis team"
-        if homeless:
-            suggested_service += " + housing / outreach services"
+    if reason_parts:
+        reason = " ".join(reason_parts)
+    else:
+        reason = "No specific additional referral need identified beyond routine support."
 
-        return {
-            "refer": True,
-            "priority": priority,
-            "reason": "; ".join(reasons) if reasons else "Elevated risk profile.",
-            "suggested_service": suggested_service,
-        }
-
-    # No urgent referral
-    return {
-        "refer": False,
-        "priority": "routine",
-        "reason": (
-            "No immediate indicators for urgent referral; offer information and optional signposting."
-        ),
-        "suggested_service": "Routine primary care or local drug service (if client wishes).",
+    referral = {
+        "refer": refer,
+        "priority": priority,
+        "reason": reason,
+        "suggested_service": suggested_service,
     }
+
+    return interventions, alerts, referral
 
 
 # =============================================================================
@@ -891,31 +1082,27 @@ def referral_recommendation(total_score: int, unknown_drugs: List[str], context:
 def triage_from_text_and_context(text: str, context: dict) -> dict:
     """
     Master function: combines drugs, TripSit penalties, context, LCMS priority,
-    and referral logic into one output dict.
+    and tailored recommendations into one output dict.
     """
     drugs, unknowns = extract_drugs(text)
     drug_score, synergy_component, tripsit_component = compute_drug_score(drugs)
     ctx_score, ctx_reasons = compute_context_modifier(context, drugs)
     total_score = drug_score + ctx_score
 
-    branch_info = triage_branch(total_score)
-    lcms_note = lcms_priority(total_score, unknowns)
-    referral_info = referral_recommendation(total_score, unknowns, context)
+    branch = triage_branch(total_score)
 
-    alerts: List[str] = []
+    # Build tailored interventions, alerts and referral
+    interventions, alerts, referral_info = build_recommendations(
+        canonical_drugs=drugs,
+        context=context,
+        branch=branch,
+        total_score=total_score,
+        unknown_drugs=unknowns,
+        ctx_reasons=ctx_reasons,
+    )
 
-    if unknowns:
-        alerts.append(
-            f"Unidentified substance(s) detected: {', '.join(unknowns)}. "
-            "These were assigned to an 'unknown' category with a conservative "
-            "non-zero risk score and should be flagged for manual review and "
-            "potential LCMS confirmation."
-        )
-    if ctx_reasons:
-        alerts.append("Contextual vulnerability factors: " + " ".join(ctx_reasons))
-    alerts.append(lcms_note)
-
-    if referral_info["refer"]:
+    # Add a high-level alert summarising the referral decision
+    if referral_info["refer"] == "Yes":
         alerts.append(
             f"Referral recommended ({referral_info['priority']}): {referral_info['reason']} "
             f"→ Suggested pathway: {referral_info['suggested_service']}."
@@ -934,11 +1121,12 @@ def triage_from_text_and_context(text: str, context: dict) -> dict:
         "tripsit_combo_component": tripsit_component,
         "context_score": ctx_score,
         "total_score": total_score,
-        "branch": branch_info["branch"],
-        "interventions": branch_info["interventions"],
+        "branch": branch,
+        "interventions": interventions,
         "alerts": alerts,
         "referral": referral_info,
     }
+
 def get_context_from_user() -> dict:
     """
     Collect person-level context from simple input 'boxes' (prompts).
