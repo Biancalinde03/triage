@@ -826,6 +826,7 @@ def referral_recommendation(total_score: int, unknown_drugs: List[str], context:
         reasons.append(
             "Known or suspected opioid dependence – assessment for structured treatment recommended."
         )
+        # if you want this to *always* trigger urgent, keep this:
         urgent = True
 
     if total_score >= 12:
@@ -834,11 +835,13 @@ def referral_recommendation(total_score: int, unknown_drugs: List[str], context:
     if unknown_drugs and total_score >= 8:
         reasons.append("Unknown substances present in a moderate/high-risk profile.")
 
+    # Decide on referral
     if urgent or total_score >= 12 or (unknown_drugs and total_score >= 8):
         priority = "urgent" if urgent else "soon"
         suggested_service = "NHS community addiction service / crisis team"
         if homeless:
             suggested_service += " + housing / outreach services"
+
         return {
             "refer": True,
             "priority": priority,
@@ -846,10 +849,13 @@ def referral_recommendation(total_score: int, unknown_drugs: List[str], context:
             "suggested_service": suggested_service,
         }
 
+    # No urgent referral
     return {
         "refer": False,
         "priority": "routine",
-        "reason": "No immediate indicators for urgent referral; offer information and optional signposting.",
+        "reason": (
+            "No immediate indicators for urgent referral; offer information and optional signposting."
+        ),
         "suggested_service": "Routine primary care or local drug service (if client wishes).",
     }
 
