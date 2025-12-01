@@ -189,10 +189,7 @@ if result is not None:
                 f"Triage score: {result['total_score']} ({result['branch']})"
             )
             lines.append("")
-            ctx_bits = [
-                f"{k}={v}" for k, v in context_for_display.items()
-                if v not in (None, False) and k != "sex"
-            ]
+            
             lines.append("Context snapshot: " + (", ".join(ctx_bits) if ctx_bits else "Not recorded"))
 
             st.text_area(
@@ -208,9 +205,21 @@ if result is not None:
             subject = f"Drug & context triage referral – priority: {ref['priority']}"
 
             ctx_bits = [
-                f"{k}={v}" for k, v in context_for_display.items()
+                f"{k}={v}"
+                for k, v in context_for_display.items()
                 if v not in (None, False) and k != "sex"
             ]
+
+            # Add sex separately if provided
+            if context_for_display.get("sex"):
+                ctx_bits.append(f"sex={context_for_display['sex']}")
+
+            ctx_line = ", ".join(ctx_bits) if ctx_bits else "Context details not recorded."
+
+
+if context_for_display.get("sex"):
+    ctx_bits.append(f"sex={context_for_display['sex']}")
+
             ctx_line = ", ".join(ctx_bits) if ctx_bits else "Context details not recorded."
 
             body_lines = [
