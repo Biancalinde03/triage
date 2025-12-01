@@ -223,6 +223,62 @@ if context_for_display.get("sex"):
             ctx_line = ", ".join(ctx_bits) if ctx_bits else "Context details not recorded."
 
             body_lines = [
+                ...
+
+
+        # =====================================================================
+        # OPTION 1 — Summary text
+        # =====================================================================
+        if mode == "Generate referral summary text":
+
+            lines = []
+            lines.append("Referral reason:")
+            lines.append(ref["reason"])
+            lines.append("")
+            lines.append(f"Suggested service: {ref['suggested_service']}")
+            lines.append("")
+            lines.append(
+                "Detected substances: "
+                + (", ".join(result["detected_drugs"]) or "None recorded")
+            )
+            lines.append(
+                f"Triage score: {result['total_score']} ({result['branch']})"
+            )
+            lines.append("")
+            
+            lines.append("Context snapshot: " + (", ".join(ctx_bits) if ctx_bits else "Not recorded"))
+
+            st.text_area(
+                "Referral summary (copy into NHS / local service form):",
+                "\n".join(lines),
+                height=260,
+            )
+
+        # =====================================================================
+        # OPTION 2 — Email template
+        # =====================================================================
+        else:
+            subject = f"Drug & context triage referral – priority: {ref['priority']}"
+
+            ctx_bits = [
+                f"{k}={v}"
+                for k, v in context_for_display.items()
+                if v not in (None, False) and k != "sex"
+            ]
+
+            # Add sex separately if provided
+            if context_for_display.get("sex"):
+                ctx_bits.append(f"sex={context_for_display['sex']}")
+
+            ctx_line = ", ".join(ctx_bits) if ctx_bits else "Context details not recorded."
+
+
+if context_for_display.get("sex"):
+    ctx_bits.append(f"sex={context_for_display['sex']}")
+
+            ctx_line = ", ".join(ctx_bits) if ctx_bits else "Context details not recorded."
+
+            body_lines = [
                 "Dear team,",
                 "",
                 "Please find below a brief summary generated from the drug & context triage tool.",
