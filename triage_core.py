@@ -1100,6 +1100,51 @@ def build_recommendations(
 
     return interventions, alerts, referral
 
+def build_referral_text(drugs_text: str, context: dict, result: dict) -> str:
+    """
+    Create a human-readable referral summary for NHS or local services.
+    This does NOT include any identifiable info.
+    """
+    ref = result["referral"]
+    drugs = ", ".join(result["detected_drugs"]) or "None recorded"
+    unknowns = ", ".join(result["unknown_drugs"]) or "None"
+
+    lines = []
+    lines.append("Referral summary")
+    lines.append("----------------")
+    lines.append(f"Reason: {ref['reason']}")
+    lines.append("")
+    lines.append("Suggested service:")
+    lines.append(f"  - {ref['suggested_service']}")
+    lines.append("")
+    lines.append("Substances detected:")
+    lines.append(f"  - Known: {drugs}")
+    lines.append(f"  - Unknown/unmapped: {unknowns}")
+    lines.append("")
+    lines.append(f"Triage score: {result['total_score']} "
+                 f"(drug={result['drug_score']}, context={result['context_score']})")
+    lines.append(f"Risk branch: {result['branch']}")
+    lines.append("")
+    lines.append("Free-text entry:")
+    lines.append(f"  {drugs_text.strip() or '(blank)'}")
+    lines.append("")
+    lines.append("Context summary:")
+    ctx_bits = []
+    if context.get("age") is not None:
+        ctx_bits.append(f"Age: {context['age']}")
+    if context.get("sex"):
+        ctx_bits.append(f"Sex: {context['sex']}")
+    if context.get("weight_kg") is not None:
+        ctx_bits.append(f"Weight: {context['weight_kg']} kg")
+    if context.get("height_cm") is not None:
+        ctx_bits.append(f"Height: {context['height_cm']} cm")
+
+    if ctx_bits:
+        lines.append("  " + "; ".join(ctx_bits))
+    else:
+        lines.append("  (No context provided)")
+
+    return "\n".join(lines)
 
 # =============================================================================
 # 9. HIGH-LEVEL TRIAGE FUNCTION

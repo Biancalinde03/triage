@@ -1,8 +1,8 @@
-import streamlit as st
 from triage_core import (
     initialise_drug_config,
     load_tripsit_combos,
     triage_from_text_and_context,
+    build_referral_text,  
 )
 
 # Initialise configs once when the app starts
@@ -104,8 +104,38 @@ if st.button("Run triage") and drugs_text.strip():
     for a in result["alerts"]:
         st.markdown(f"- {a}")
 
-    st.markdown("### Referral recommendation")
-    ref = result["referral"]
-    st.write(f"**Refer:** {ref['refer']} (priority: **{ref['priority']}**)")
-    st.write(f"**Reason:** {ref['reason']}")
-    st.write(f"**Suggested service:** {ref['suggested_service']}")
+        # --- Provisional booking / referral helper ---
+    if ref["refer"] == "Yes":
+        st.markdown("### Provisional booking / referral")
+
+        st.info(
+            "Prototype feature. In a clinical deployment this could integrate "
+            "with NHS e-Referral or local service booking systems, subject to "
+            "information governance and permissions."
+        )
+
+        mode = st.radio(
+            "Select referral output method:",
+            [
+                "Generate referral summary text",
+                "Prepare referral email (copy/paste)",
+            ],
+        )
+
+        if mode == "Generate referral summary text":
+            if st.button("Generate summary"):
+                summary = build_referral_text(drugs_text, context, result)
+                st.text_area(
+                    "Referral summary (copy into NHS form):",
+                    value=summary,
+                    height=300,
+                )
+
+        else:
+            subject = f"Triage referral – priority: {ref['priority']}"
+            body = build_referral_text(drugs_text, context, result)
+
+            st.write("**Email template:**")
+            st.text_input("Subject:", value=subject, key="email_subject")
+            st.text_area("Body:", value=body, height=300, key="email_body")
+
