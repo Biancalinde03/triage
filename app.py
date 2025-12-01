@@ -93,51 +93,153 @@ context = {
 }
 
 # -------------------------------------------------------------------------
-# MAIN RUN BUTTON – store result in session_state
+# MAIN TRIAGE EXECUTION — store result in session_state
 # -------------------------------------------------------------------------
+
 if st.button("Run triage") and drugs_text.strip():
     result = triage_from_text_and_context(drugs_text, context)
+
+    # Save to session_state so results persist when user clicks radio buttons
     st.session_state.triage_result = result
     st.session_state.triage_context = context
     st.session_state.triage_text = drugs_text
 
-# Always read from session_state for display
+
+# -------------------------------------------------------------------------
+# ALWAYS DISPLAY LAST TRIAGE RESULT (if present)
+# -------------------------------------------------------------------------
 result = st.session_state.triage_result
 context_for_display = st.session_state.triage_context
 
 if result is not None:
+
     st.markdown("## Triage result")
 
-    st.write(
-        f"**Detected drugs:** {', '.join(result['detected_drugs']) or 'None'}"
-    )
-    if result["unknown_drugs"]:
-        st.write(
-            f"**Unknown drugs (flagged):** "
-            f"{', '.join(result['unknown_drugs'])}"
-        )
+    st.write(f"**Detected drugs:** {', '.join(result['detected_drugs']) or 'None'}")
 
-    st.write(
-        f"**Drug score (acute pharmacological risk):** "
-        f"{result['drug_score']}"
-    )
+    if result["unknown_drugs"]:
+        st.write(f"**Unknown drugs (flagged):** {', '.join(result['unknown_drugs'])}")
+
+    st.write(f"**Drug score (acute pharmacological risk):** {result['drug_score']}")
     st.write(f"- Category synergy component: {result['synergy_component']}")
     st.write(f"- TripSit combo component: {result['tripsit_combo_component']}")
-    st.write(
-        f"**Context score (client vulnerability factors):** "
-        f"{result['context_score']}"
-    )
-    st.write(
-        f"**TOTAL triage score (acute overdose risk):** "
-        f"{result['total_score']}"
-    )
+    st.write(f"**Context score (client vulnerability factors):** {result['context_score']}")
+    st.write(f"**TOTAL triage score (acute overdose risk):** {result['total_score']}")
 
     st.caption(
-        "The total triage score reflects **relative acute overdose / "
-        "life-threatening risk** within this model. It does not mean the "
-        "drugs are safe or low-harm overall when the score is lower."
+        "The total triage score reflects **relative acute overdose / life-threatening risk** "
+        "within this model. It does not mean the drugs are safe or low-harm overall when the score is lower."
     )
 
-    st.markdown(
-        f"### Acute risk branch / pathway: **{result['branch']}**"
-    )
+    st.markdown(f"### Acute risk branch / pathway: **{result['branch']}**")
+
+    st.markdown("**Recommended interventions (based on acute risk):**")
+    for item in result["interventions"]:
+        st.markdown(f"- {item}")
+
+    st.markdown("### Alerts and notes")
+    for a in result["alerts"]:
+        st.markdown(f"- {a}")
+
+    st.markdown("### Referral recommendation")
+    ref = result["referral"]
+    st.write(f"**Refer:** {ref['refer']} (priority: **{ref['priority']}**)")
+    st.write(f"**Reason:** {ref['reason']}")
+    st.write(f"**Suggested service:** {ref['suggested_service']}")
+
+    # ------------------------------------------------------------------
+    # PROVISIONAL BOOKING / REFERRAL HELPER (ONLY IF REFER = YES)
+    # ------------------------------------------------------------------
+    if str(ref.get("refer", "")).strip().lower().startswith("y"):
+
+        st.markdown("### Provisional booking / referral")
+
+        st.info(
+            "Prototype feature. In a clinical deployment this could integrate "
+            "with NHS e-Referral or local service booking systems, subject to "
+            "information governance and local permissions. For now it simply "
+            "generates text that can be copied into existing referral forms."
+        )
+
+        mode = st.radio(
+            "Select referral output format:",
+            (
+                "Generate referral summary text",
+                "Prepare referral email (copy/paste)",
+            ),
+            key="ref_output_mode"  # <-- ESSENTIAL to stop page reset
+        )
+
+        # =====================================================================
+        # OPTION 1 — Summary text
+        # =====================================================================
+        if mode == "Generate referral summary text":
+
+            lines = []
+            lines.append("Referral reason:")
+            lines.append(ref["reason"])
+            lines.append("")
+            lines.append(f"Suggested service: {ref['suggested_service']}")
+            lines.append("")
+            lines.append(
+                "Detected substances: "
+                + (", ".join(result["detected_drugs"]) or "None recorded")
+            )
+            lines.append(
+                f"Triage score: {result['total_score']} ({result['branch']})"
+            )
+            lines.append("")
+            ctx_bits = [
+                f"{k}={v}" for k, v in context_for_display.items()
+                if v not in (None, False) and k != "sex"
+            ]
+            lines.append("Context snapshot: " + (", ".join(ctx_bits) if ctx_bits else "Not recorded"))
+
+            st.text_area(
+                "Referral summary (copy into NHS / local service form):",
+                "\n".join(lines),
+                height=260,
+            )
+
+        # =====================================================================
+        # OPTION 2 — Email template
+        # =====================================================================
+        else:
+            subject = f"Drug & context triage referral – priority: {ref['priority']}"
+
+            ctx_bits = [
+                f"{k}={v}" for k, v in context_for_display.items()
+                if v not in (None, False) and k != "sex"
+            ]
+            ctx_line = ", ".join(ctx_bits) if ctx_bits else "Context details not recorded."
+
+            body_lines = [
+                "Dear team,",
+                "",
+                "Please find below a brief summary generated from the drug & context triage tool.",
+                "",
+                f"Suggested service: {ref['suggested_service']}",
+                f"Referral priority: {ref['priority']}",
+                "",
+                "Reason for referral:",
+                ref["reason"],
+                "",
+                "Detected substances:",
+                ", ".join(result["detected_drugs"]) or "None recorded",
+                "",
+                f"Triage score: {result['total_score']} ({result['branch']})",
+                "",
+                "Key contextual factors:",
+                ctx_line,
+                "",
+                "This text is intended to be copied into your usual referral system.",
+                "",
+                "Best wishes,",
+                "________________________",
+            ]
+
+            body_text = "\n".join(body_lines)
+
+            st.write("**Email template (copy & paste into NHS / local system):**")
+            st.text_input("Subject", value=subject, key="ref_email_subject")
+            st.text_area("Body", value=body_text, height=320, key="ref_email_body")
