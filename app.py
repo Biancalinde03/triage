@@ -3,6 +3,7 @@ from triage_core import (
     initialise_drug_config,
     load_tripsit_combos,
     triage_from_text_and_context,
+    build_referral_text,  
 )
 
 # Initialise configs once when the app starts
