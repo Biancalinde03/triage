@@ -3,15 +3,18 @@ from triage_core import (
     initialise_drug_config,
     load_tripsit_combos,
     triage_from_text_and_context,
-    build_referral_text,  
+    # build_referral_text,  # not needed now, so optional
 )
 
+# -------------------------------------------------------------------------
 # Initialise configs once when the app starts
+# -------------------------------------------------------------------------
 @st.cache_resource
 def init_engine():
     initialise_drug_config(tripsit_path="drugs.json")
     load_tripsit_combos("combos.json")
     return True
+
 
 init_engine()
 
@@ -23,9 +26,9 @@ if "triage_result" not in st.session_state:
     st.session_state.triage_context = None
     st.session_state.triage_text = ""
 
-
-init_engine()
-which 
+# -------------------------------------------------------------------------
+# PAGE HEADER
+# -------------------------------------------------------------------------
 st.title("Drug & Context Triage Tool")
 
 st.markdown(
@@ -90,11 +93,19 @@ context = {
 }
 
 # -------------------------------------------------------------------------
-# MAIN RUN BUTTON + OUTPUT
+# MAIN RUN BUTTON – store result in session_state
 # -------------------------------------------------------------------------
 if st.button("Run triage") and drugs_text.strip():
     result = triage_from_text_and_context(drugs_text, context)
+    st.session_state.triage_result = result
+    st.session_state.triage_context = context
+    st.session_state.triage_text = drugs_text
 
+# Always read from session_state for display
+result = st.session_state.triage_result
+context_for_display = st.session_state.triage_context
+
+if result is not None:
     st.markdown("## Triage result")
 
     st.write(
@@ -130,136 +141,3 @@ if st.button("Run triage") and drugs_text.strip():
     st.markdown(
         f"### Acute risk branch / pathway: **{result['branch']}**"
     )
-
-    st.markdown(
-        "**Recommended interventions (based on acute risk):**"
-    )
-    for item in result["interventions"]:
-        st.markdown(f"- {item}")
-
-    st.markdown("### Alerts and notes")
-    for a in result["alerts"]:
-        st.markdown(f"- {a}")
-
-    st.markdown("### Referral recommendation")
-    ref = result["referral"]
-    st.write(
-        f"**Refer:** {ref['refer']} "
-        f"(priority: **{ref['priority']}**)"
-    )
-    st.write(f"**Reason:** {ref['reason']}")
-    st.write(f"**Suggested service:** {ref['suggested_service']}")
-
-    # ------------------------------------------------------------------
-    # PROVISIONAL BOOKING / REFERRAL HELPER (prototype only)
-    # Appears *only* when a referral is recommended.
-    # ------------------------------------------------------------------
-    if str(ref.get("refer", "")).strip().lower().startswith("y"):
-        st.markdown("### Provisional booking / referral")
-
-        st.info(
-            "Prototype feature. In a clinical deployment this could integrate "
-            "with NHS e-Referral or local service booking systems, subject to "
-            "information governance and local permissions. For now it simply "
-            "generates text that can be copied into existing referral forms."
-        )
-
-        mode = st.radio(
-            "Select referral output format:",
-            (
-                "Generate referral summary text",
-                "Prepare referral email (copy/paste)",
-            ),
-        )
-
-        # --- Option 1: plain-text summary for forms / notes ---
-        if mode == "Generate referral summary text":
-            # Build a compact summary directly in the app (no extra helpers needed)
-            lines = []
-            lines.append("Referral reason:")
-            lines.append(ref["reason"])
-            lines.append("")
-            lines.append(f"Suggested service: {ref['suggested_service']}")
-            lines.append("")
-            lines.append(
-                "Detected substances: "
-                + (", ".join(result["detected_drugs"]) or "None recorded")
-            )
-            lines.append(
-                f"Triage score: {result['total_score']} "
-                f"({result['branch']})"
-            )
-            lines.append("")
-            # simple context snapshot (ignore False / None)
-            ctx_bits = [
-                f"{k}={v}"
-                for k, v in context.items()
-                if v not in (None, False) and k != "sex"
-            ]
-            lines.append(
-                "Context snapshot: "
-                + (", ".join(ctx_bits) if ctx_bits else "Not recorded")
-            )
-
-            summary_text = "\n".join(lines)
-
-            st.text_area(
-                "Referral summary (copy into NHS / local service form):",
-                summary_text,
-                height=260,
-            )
-
-        # --- Option 2: email-style template to paste into NHS email ---
-        else:
-            subject = (
-                f"Drug & context triage referral – priority: {ref['priority']}"
-            )
-
-            ctx_bits = [
-                f"{k}={v}"
-                for k, v in context.items()
-                if v not in (None, False) and k != "sex"
-            ]
-            ctx_line = (
-                ", ".join(ctx_bits) if ctx_bits else "Context details not recorded."
-            )
-
-            body_lines = [
-                "Dear team,",
-                "",
-                "Please find below a brief summary generated from the "
-                "drug & context triage tool.",
-                "",
-                f"Suggested service: {ref['suggested_service']}",
-                f"Referral priority: {ref['priority']}",
-                "",
-                "Reason for referral:",
-                ref["reason"],
-                "",
-                "Detected substances:",
-                ", ".join(result["detected_drugs"]) or "None recorded",
-                "",
-                f"Triage score: {result['total_score']} "
-                f"({result['branch']})",
-                "",
-                "Key contextual factors:",
-                ctx_line,
-                "",
-                "This text is intended to be copied into your usual "
-                "referral system (e.g. NHS e-Referral, local homeless "
-                "outreach referral form, or secure email).",
-                "",
-                "Best wishes,",
-                "________________________",
-            ]
-            body_text = "\n".join(body_lines)
-
-            st.write(
-                "**Email template (copy & paste into NHS / local system):**"
-            )
-            st.text_input(
-                "Subject", value=subject, key="ref_email_subject"
-            )
-            st.text_area(
-                "Body", value=body_text, height=320, key="ref_email_body"
-            )
