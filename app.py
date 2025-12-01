@@ -13,9 +13,19 @@ def init_engine():
     load_tripsit_combos("combos.json")
     return True
 
-
 init_engine()
 
+# -------------------------------------------------------------------------
+# Session state to persist last triage run
+# -------------------------------------------------------------------------
+if "triage_result" not in st.session_state:
+    st.session_state.triage_result = None
+    st.session_state.triage_context = None
+    st.session_state.triage_text = ""
+
+
+init_engine()
+which 
 st.title("Drug & Context Triage Tool")
 
 st.markdown(
